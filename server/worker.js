@@ -1,29 +1,37 @@
 import { Worker } from 'bullmq';
-const worker = new Worker('file-upload-queue', async job => {
-  async(job)=>{
-    console.log(`job:`,job.data)
-    const data=JSON.parse(job.data)
+import { OpenAIEmbeddings } from '@langchain/openai';
+import { QdrantVectorStore } from '@langchain/qdrant';
+import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 
-    const loader=new PDFLoader(data.path)
-    const docs=await loader.load()
-    const embeddings=new OpenAIEmbeddings({
-        model:'text-embedding-3-small',
-        apiKey:""
-    })
-    const vectorStore=await QuadrantVectorStore.fromExistingCollection(
-        embeddings,
-        {
-            url:"http://localhost:6333",
-            collectionName:"langchainjs-testing"
-        }
+
+const worker = new Worker(
+  'file-upload-queue',
+  async (job) => {
+    console.log(`Job:`, job.data);
+    const data = JSON.parse(job.data);
+    const loader = new PDFLoader(data.path);
+    const docs = await loader.load();
+
+    const embeddings = new OpenAIEmbeddings({
+      model: 'text-embedding-3-small',
+      apiKey: '',
+    });
+
+    const vectorStore = await QdrantVectorStore.fromExistingCollection(
+      embeddings,
+      {
+        url: 'http://localhost:6333',
+        collectionName: 'langchainjs-testing',
+      }
     );
-    await vectorStore.addDocument(docs)
-    console.log(`All docs are added to vector store`)
-    
+    await vectorStore.addDocuments(docs);
+    console.log(`All docs are added to vector store`);
+  },
+  {
+    concurrency: 100,
+    connection: {
+      host: 'localhost',
+      port: '6379',
+    },
   }
-}, { concurrency: 100,
-    connection:{
-        host:'localhost',
-        port:'6379'
-    }
- });
+);
